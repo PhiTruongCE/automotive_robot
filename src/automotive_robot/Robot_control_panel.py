@@ -16,6 +16,6 @@ def menu():
     parser.add_argument('-gy', type=float, help='goal point y', default=50.0)
     args = parser.parse_args()
     print ("___________________")
-    print (args)
+    #print (args)
 
     return args

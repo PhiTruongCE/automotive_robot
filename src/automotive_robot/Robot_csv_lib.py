@@ -47,11 +47,11 @@ def read_map_csv(mapname):
                     obstacles.append(ob_part)
                 ob_part = []
                 continue
-            ob_part.append([float(row[0]),float(row[1])])
+            ob_part.append((float(row[0]),float(row[1])))
         if len(ob_part) > 1:
             ob_part.append(ob_part[0])
             obstacles.append(ob_part)
-    print (obstacles)
+    #print (obstacles)
     return obstacles
     
 def read_map_csv_dwa(mapname):

@@ -1,5 +1,5 @@
-from Robot_lib import *
-from Program_config import *
+from automotive_robot.Robot_lib import *
+from automotive_robot.Program_config import *
 from matplotlib import patches
 
 

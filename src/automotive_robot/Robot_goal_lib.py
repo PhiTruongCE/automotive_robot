@@ -3,8 +3,8 @@ autonomousRobot
 This project is to simulate an autonomousRobot that try to find a way to reach a goal (target) 
 author: Binh Tran Thanh / email:thanhbinh@hcmut.edu.vn
 """
-from Robot_lib import *
-from Robot_sight_lib import *
+from automotive_robot.Robot_lib import *
+from automotive_robot.Robot_sight_lib import *
 
 
 def saw_goal(center, radius, t_sight, goal):

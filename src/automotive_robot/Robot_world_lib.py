@@ -9,7 +9,7 @@ import cv2 as cv
 import numpy as np
 import argparse
 import csv
-
+from automotive_robot.Program_config import SCALE_IMG
 
 def thresh_callback(threshold, src_gray, world_name):
     # Detect edges using Canny
@@ -36,14 +36,15 @@ def read_map_from_world(world_name):
         exit(0)
 
     # Convert image to gray and blur it
-    print("find contours of world:", world_name)
+    #print("find contours of world:", world_name)
     src_gray = cv.cvtColor(src, cv.COLOR_BGR2GRAY)
     src_gray = cv.blur(src_gray, (3, 3))
 
     max_thresh = 255
     thresh = 100  # initial threshold
-    obstacle = thresh_callback(thresh, src_gray, world_name)
-    print(obstacle)
+    #obstacle = thresh_callback(thresh, src_gray, world_name)
+    thresh_callback(thresh, src_gray, world_name)
+    #print(obstacle)
 
 
 def world_display(plt, mpimg, world_name):

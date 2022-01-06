@@ -1,6 +1,6 @@
 win_size = 100
-from Program_config import ls_map
-from Robot_lib import *
+from automotive_robot.Program_config import ls_map
+from automotive_robot.Robot_lib import *
 import numpy as np
 
 

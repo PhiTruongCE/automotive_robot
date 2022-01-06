@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 2.8.3)
+cmake_minimum_required(VERSION 3.16.3)
 project(automotive_robot)
 
 find_package(catkin REQUIRED)
@@ -10,6 +10,7 @@ find_package(catkin REQUIRED COMPONENTS
   std_msgs
   geometry_msgs
   message_generation
+  nav_msgs
 )
 find_package(OpenCV REQUIRED)
 
@@ -19,9 +20,9 @@ find_package(OpenCV REQUIRED)
 
 add_message_files(FILES Path.msg Point.msg) 
 
-add_service_files(FILES )
+#add_service_files(FILES )
 
-
+catkin_python_setup()
 generate_messages(DEPENDENCIES std_msgs)
 
 ################################################
@@ -32,8 +33,9 @@ generate_messages(DEPENDENCIES std_msgs)
 ###################################
 ## catkin specific configuration ##
 ###################################
+
 catkin_package(
-CATKIN_DEPENDS roscpp rospy std_msgs geometry_msgs message_runtime
+CATKIN_DEPENDS roscpp rospy std_msgs geometry_msgs message_runtime nav_msgs 
 )
 
 ## add include files
@@ -48,12 +50,16 @@ include_directories(${OpenCV_INCLUDE_DIRS})
 ###########
 
 ## Declare a C++ executable
-add_executable(robot_motion_node src/robot_motion_node.cpp)
+add_executable(robot_motion_node src/automotive_robot/robot_motion_node.cpp)
 target_link_libraries(robot_motion_node ${catkin_LIBRARIES})
-add_dependencies(robot_motion_node robot_motion_generate_messages_cpp)
+add_dependencies(robot_motion_node automotive_robot_generate_messages_cpp)
 
-catkin_install_python(PROGRAMS src/RobotGlobalVisionUpdate.py
-                               src/Program_config.py src/Robot_lib.py src/Robot_control_panel.py src/Robot_csv_lib.py src/Robot_draw_lib.py src/Robot_goal_lib.py src/Robot_map_lib.py src/Robot_paths_lib.py src/Robot_sight_lib.py src/Robot_world_lib.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+catkin_install_python(PROGRAMS src/automotive_robot/RobotGlobalVisionUpdate.py src/automotive_robot/trigger_node.py DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION})
+#src/automotive_robot/RobotGlobalVisionUpdate.py src/automotive_robot/Program_config.py src/automotive_robot/Robot_lib.py src/automotive_robot/Robot_control_panel.py src/automotive_robot/Robot_csv_lib.py src/automotive_robot/Robot_draw_lib.py src/automotive_robot/Robot_goal_lib.py src/automotive_robot/Robot_map_lib.py src/automotive_robot/Robot_paths_lib.py src/automotive_robot/Robot_sight_lib.py src/automotive_robot/Robot_world_lib.py
+
+# add_executable(publisher src/automotive_robot/publisher.cpp)
+# target_link_libraries(publisher ${catkin_LIBRARIES})
+# add_dependencies(publisher automotive_robot_generate_messages_cpp)
 
 #############
 ## Install ##

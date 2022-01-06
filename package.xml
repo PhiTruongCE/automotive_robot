@@ -14,11 +14,23 @@
   <build_depend>std_msgs</build_depend>
   <build_depend>geometry_msgs</build_depend>
   <build_depend>message_generation</build_depend>
+  <build_depend>nav_msgs</build_depend>
 
   <exec_depend>roscpp</exec_depend>
   <exec_depend>rospy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
   <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>nav_msgs</exec_depend>
   <exec_depend>message_runtime</exec_depend>
-
+  <exec_depend>test_module.py</exec_depend>
+  <exec_depend>Program_config.py</exec_depend>
+  <exec_depend>Robot_control_panel.py</exec_depend>
+  <exec_depend>Robot_csv_lib.py</exec_depend>
+  <exec_depend>Robot_draw_lib.py</exec_depend>
+  <exec_depend>Robot_goal_lib.py</exec_depend>
+  <exec_depend>Robot_lib.py</exec_depend>
+  <exec_depend>Robot_map_lib.py</exec_depend>
+  <exec_depend>Robot_paths_lib.py</exec_depend>
+  <exec_depend>Robot_sight_lib.py</exec_depend>
+  <exec_depend>Robot_world_lib.py</exec_depend>
 </package>

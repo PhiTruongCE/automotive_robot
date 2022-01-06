@@ -17,9 +17,9 @@ def intersection(x, y, radius, ls_points):  # line segment points
     if discriminant > 0:
         t1 = (-b + discriminant ** 0.5) / (2 * a)
         t2 = (-b - discriminant ** 0.5) / (2 * a)
-        pt1 = [dx * t1 + p1x, dy * t1 + p1y]
-        pt2 = [dx * t2 + p1x, dy * t2 + p1y]
-        is_pt = (pt1, pt2)
+        pt1 = (dx * t1 + p1x, dy * t1 + p1y)
+        pt2 = (dx * t2 + p1x, dy * t2 + p1y)
+        is_pt.extend([pt1, pt2])
 
     return is_pt
 
@@ -44,7 +44,7 @@ def rotate_vector_center(center, v, radians):
     vector_vc = np.subtract(v, center)
     r_vector_vc = rotate_vector(vector_vc, radians)
     result = np.add(center, r_vector_vc)
-    return np.add(center, r_vector_vc)
+    return result
 
 
 def rotate_vector(v, radians):
@@ -93,6 +93,8 @@ def unsigned_angle_xAxis(point):
     if angle < 0:
         angle = 2 * math.pi + angle
     return angle
+
+'''Return range (-pi;pi)'''
 
 
 def signed_angle_xAxis(point):
@@ -333,7 +335,7 @@ def line_intersection(line1, line2):
     d = (det(*line1), det(*line2))
     x = det(d, xdiff) / div
     y = det(d, ydiff) / div
-    return x, y
+    return tuple((x, y))
 
 
 def get_middle_direction(center, radius, pair):
@@ -343,7 +345,6 @@ def get_middle_direction(center, radius, pair):
     """
     midpt = midpoint(pair[0], pair[1])
     pt_is = intersection(center[0], center[1], radius, [center, midpt])
-
     if inside_ls(midpt, [pt_is[0], center]):
         return pt_is[0]
     else:
@@ -398,55 +399,69 @@ def find_configure_space(obstacles, robot_radius):
     # get normal vectors of all obstacles
     for obstacle in obstacles:
         nv = []
-        for i in range(len(obstacle)):
-            if i == len(obstacle) - 1:  # last one
-                nvector = normal_vector((obstacle[i], obstacle[0]), robot_radius)
-            else:
-                nvector = normal_vector((obstacle[i], obstacle[i + 1]), robot_radius)
+        for i in range(len(obstacle) - 1):
+            # if i == len(obstacle) - 1:  # last one
+            #     nvector = normal_vector((obstacle[i], obstacle[0]), robot_radius)
+            #else:
+            nvector = normal_vector((obstacle[i], obstacle[i + 1]), robot_radius)
             nv.append(nvector)
         nvs.append(nv)
+
+    #nvs is a list of many nv (s)
+    #nv is a list of cap diem 
 
     # get bisectors and limited line segment at joint points
     lim_lss = []
     for obstacle in obstacles:
         lim_ls = []
-        for i in range(len(obstacle)):
-            if i == len(obstacle) - 1:  # last item
-                ls = cal_bisector(obstacle[i - 1], obstacle[i], obstacle[0], robot_radius)
+        for i in range(len(obstacle) - 1):
+            # if i == len(obstacle) - 1:  # last item
+            #     ls = cal_bisector(obstacle[i - 1], obstacle[i], obstacle[0], robot_radius)
+            # else:
+            if i == 0:
+                ls = cal_bisector(obstacle[i - 2], obstacle[i], obstacle[i + 1], robot_radius)
             else:
                 ls = cal_bisector(obstacle[i - 1], obstacle[i], obstacle[i + 1], robot_radius)
             lim_ls.extend(ls)
         lim_lss.append(lim_ls)
+    
+    # lim_lss is a list of many ls 
+    # lim_ls is a list of many diem
 
-    for lim_ls in lim_lss:
-        print("__________________", lim_ls)
-        i = 0
-        for ls in lim_ls:
-            plt.plot(ls[0], ls[1], ".r")
-            plt.text(ls[0], ls[1], ".{0}".format(i))
-            i = i + 1
+    # for lim_ls in lim_lss:
+    #     print("__________________", lim_ls)
+    #     i = 0
+    #     for ls in lim_ls:
+    #         plt.plot(ls[0], ls[1], ".r")
+    #         plt.text(ls[0], ls[1], ".{0}".format(i))
+    #         i = i + 1
 
     # find extend of obstacles
     j = 0
     extend_cspaces = []
     for obstacle in obstacles:
         extend_cspace = []
-        for i in range(len(obstacle)):
-            if i == len(obstacle) - 1:  # last one
-                extend_cspace.append(np.add(obstacle[i], nvs[j][i]))
-                extend_cspace.append(np.add(obstacle[0], nvs[j][i]))
-            else:
-                extend_cspace.append(np.add(obstacle[i], nvs[j][i]))
-                extend_cspace.append(np.add(obstacle[i + 1], nvs[j][i]))
+        for i in range(len(obstacle) - 1):
+            # if i == len(obstacle) - 1:  # last one
+            #     extend_cspace.append(np.add(obstacle[i], nvs[j][i]))
+            #     extend_cspace.append(np.add(obstacle[0], nvs[j][i]))
+            #else:
+            extend_cspace.append(np.add(obstacle[i], nvs[j][i]))
+            extend_cspace.append(np.add(obstacle[i + 1], nvs[j][i]))
+        
         extend_cspaces.append(extend_cspace)
         j = j + 1
 
-    for extend_cspace in extend_cspaces:
-        i = 0
-        for pt in extend_cspace:
-            plt.plot(pt[0], pt[1], ".b")
-            plt.text(pt[0], pt[1], ",{0}".format(i))
-            i = i + 1
+    # extend_cspaces is a list of many extend_cspace 
+    # extend_cspace is a list of many diem
+
+
+    # for extend_cspace in extend_cspaces:
+    #     i = 0
+    #     for pt in extend_cspace:
+    #         plt.plot(pt[0], pt[1], ".b")
+    #         plt.text(pt[0], pt[1], ",{0}".format(i))
+    #         i = i + 1
 
     # find boundary of configuration spaces
     j = 0
@@ -483,17 +498,15 @@ def cal_bisector(ptA, ptMid, ptB, robot_radius):
     this function calculate a bisector of 2 vector (mid,A) and (mid,B) then return line segment with normal
     vector of bisector
     """
-    print("AMB ", ptA, ptMid, ptB)
     vector_a = np.subtract(ptMid, ptA)
     vector_b = np.subtract(ptMid, ptB)
-    u_vec_a = unit_vector(vector_a)
+    u_vec_a = unit_vector(vector_a)     
     u_vec_b = unit_vector(vector_b)
-    vector_bs = np.add(u_vec_a, u_vec_b)
+    vector_bs = np.add(u_vec_a, u_vec_b)                # Tong cua 2 vector bang nhau = vector phan giac cua 2 vector do
     vector_bs = unit_vector(vector_bs) * robot_radius
     vector_bs = np.add(ptMid, vector_bs)
     vector_ab = np.subtract(u_vec_a, u_vec_b)
     limit_ls = np.add(vector_bs, vector_ab)
-    print("___________", vector_bs, limit_ls)
     line_segment_bs = (vector_bs, limit_ls)
     return line_segment_bs
 

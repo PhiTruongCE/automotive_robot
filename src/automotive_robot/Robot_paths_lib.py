@@ -1,19 +1,20 @@
 import numpy as np
 from sys import float_info
-from Robot_lib import *
-from Robot_sight_lib import inside_global_true_sight
+from automotive_robot.Robot_lib import *
+from automotive_robot.Robot_sight_lib import inside_global_true_sight
 from collections import defaultdict
 
-from Robot_draw_lib import *
+from automotive_robot.Robot_draw_lib import *
 
 
 def motion(current_position, next_pt):
     """
     motion model
     """
-    current_position[0] = approximately_num(next_pt[0])
-    current_position[1] = approximately_num(next_pt[1])
-    return current_position
+    result = (float(approximately_num(next_pt[0])),float(approximately_num(next_pt[1])))
+    #current_position[0] = approximately_num(next_pt[0])
+    #current_position[1] = approximately_num(next_pt[1])
+    return result
 
 
 def ranking_score(angle, distance):
@@ -35,7 +36,7 @@ def ranking(center, pt, goal):
     score the open point by its angle (from center to point and goal) and its distance (to goal)
     """
 
-    sa = signed_angle(goal - center, pt - center)
+    sa = signed_angle(np.subtract(goal,center),np.subtract(pt,center))
     dist = point_dist(goal, pt)
     rank_score = ranking_score(sa, dist)
     return [rank_score]
@@ -107,7 +108,7 @@ def get_possible_AH_next_points_from_point(AH_points, obstacle_list, startpoint,
 
 def find_AH_paths(ox_b, oy_b, startpoint, goal):
     obstacle_list = np.array([ox_b, oy_b])
-    print(obstacle_list)
+    #print(obstacle_list)
     AH_paths = []
     AH_points = []
     AH_points.append(startpoint)
@@ -162,7 +163,7 @@ def graph_insert(graph, pnode, leafs):
 
 
 def BFS_skeleton_path(graph, start, goal):
-    print("Current {0}, Next {1}".format(start, goal))
+    #print("Current {0}, Next {1}".format(start, goal))  
     # print ("graph", graph)
     explored = []
 
@@ -198,7 +199,7 @@ def BFS_skeleton_path(graph, start, goal):
                 # Condition to check if the
                 # neighbour node is the goal
                 if neighbour == goal:
-                    print("BFS_skeleton_path = ", new_path)
+                    #print("BFS_skeleton_path = ", new_path)
                     return new_path
             explored.append(node)
 
@@ -212,7 +213,7 @@ def approximately_shortest_path(skeleton_path, traversal_sight, robot_vision):
     if len(skeleton_path) <= 2:
         return skeleton_path, []
     else:
-        print("skeleton_path:", skeleton_path)
+        #print("skeleton_path:", skeleton_path)
         spt = skeleton_path[0]      # start point
         gpt = skeleton_path[-1]     # goal point
         critical_ls = get_critical_ls(
@@ -293,7 +294,7 @@ def get_critical_ls(skeleton_path, traversal_sight, robot_vision):
             local_ls.append([0, midpt, c_pt])
 
         critical_ls.extend(local_ls)
-        print("critical_ls", critical_ls)
+        #print("critical_ls", critical_ls)
     return critical_ls
 
 
@@ -337,6 +338,7 @@ def approximately_sp_ls_B(critical_ls, spt, gpt):
 def approximately_sp_ls(critical_ls, spt, gpt):
     i = 0
     path = []  # list of points
+    flag_asp = []
     pre_total_dist = float('inf')
     total_dist = 0.0
     if len(critical_ls) > 0:
@@ -344,28 +346,41 @@ def approximately_sp_ls(critical_ls, spt, gpt):
         path.append(spt)  # start point
         for ls in critical_ls:
             pt = midpoint(ls[1], ls[2])
-            path.append(pt)  # middle point of critical line segments
+            path.append(tuple(pt))  # middle point of critical line segments
             i = i + 1
         path.append(gpt)  # end point
+        flag_asp.append(False)
+        flag_asp = [True for k in range(len(path) - 2)]
+        flag_asp.append(False)
 
         for j in range(1000):
 
             for i in range(1, len(path) - 1):
                 # find cross point of p(n-1), p(n) and p(n+1)
-                line1 = (path[i - 1], path[i + 1])
-                line2 = critical_ls[i - 1][1:3]
-                pn_new = line_across(line1, line2)
-                if pn_new is not None:
-                    path[i] = pn_new
-                else:
-                    d1 = point_dist(path[i - 1], critical_ls[i - 1][1]) + \
-                        point_dist(path[i + 1], critical_ls[i - 1][1])
-                    d2 = point_dist(path[i - 1], critical_ls[i - 1][2]) + \
-                        point_dist(path[i + 1], critical_ls[i - 1][2])
-                    if d1 > d2:
-                        path[i] = critical_ls[i - 1][2]
+                if flag_asp[i - 1] or flag_asp[i + 1]:
+                    line1 = (path[i - 1], path[i + 1])
+                    line2 = critical_ls[i - 1][1:3]
+                    pn_new = line_across(line1, line2)
+                    if pn_new is not None:
+                        path[i] = tuple(pn_new)
+                        flag_asp[i] = True
                     else:
-                        path[i] = critical_ls[i - 1][1]
+                        d1 = point_dist(path[i - 1], critical_ls[i - 1][1]) + \
+                            point_dist(path[i + 1], critical_ls[i - 1][1])
+                        d2 = point_dist(path[i - 1], critical_ls[i - 1][2]) + \
+                            point_dist(path[i + 1], critical_ls[i - 1][2])
+                        if d1 > d2:
+                            if not math.isclose(point_dist(path[i],critical_ls[i-1][2])):
+                                path[i] = tuple(critical_ls[i - 1][2])
+                                flag_asp[i] = True
+                            else:
+                                flag_asp[i] = False
+                        else:
+                            if not math.isclose(point_dist(path[i],critical_ls[i-1][1])):
+                                path[i] = tuple(critical_ls[i - 1][1])
+                                flag_asp[i] = True
+                            else:
+                                flag_asp[i] = False
     return path
 
 
@@ -379,7 +394,7 @@ def get_local_open_points(open_sights):
     if len(open_sights) > 0:
         open_sights = np.array(open_sights)
         local_open_pts = open_sights[:, 2]  # local_openPts
-        print("local_openPts,", local_open_pts)
+        #print("local_openPts,", local_open_pts)
         for i in range(len(local_open_pts)):
             local_open_pts[i][0] = approximately_num(local_open_pts[i][0])
             local_open_pts[i][1] = approximately_num(local_open_pts[i][1])
@@ -419,7 +434,7 @@ def is_inside_active_arc(local_open_pts, robot_vision, center, goal):
     robot_to_goal = point_dist(center, goal)
     pt_a, pt_b = get_intersections_2circles(
         center, robot_vision, goal, robot_to_goal)
-    print(local_open_pts)
+    #print(local_open_pts)
     inside_active_arc = [inside_angle_area(pt, center, (pt_a, pt_b))[
         0] for pt in local_open_pts]
     local_active_open_pts = local_open_pts[inside_active_arc]

@@ -1,6 +1,6 @@
-from Robot_lib import *
-from Robot_draw_lib import *
-from Program_config import *
+from automotive_robot.Robot_lib import *
+from automotive_robot.Robot_draw_lib import *
+from automotive_robot.Program_config import *
 import numpy as np
 
 import matplotlib.pyplot as plt
@@ -309,10 +309,10 @@ def test_get_closed(b_lss):
     return b_lss
 
 
-def get_closed_sights(center, robot_vision, ob):
+def get_closed_sights(center, robot_vision, ob):    #tra ve cac DOAN CHAN khong khuat
     # get boundary line segments where is limited by obstacles
     b_lss = get_boundary_linesegments(center, robot_vision, ob)
-    print(b_lss)
+    #print(b_lss)
     if print_boundary_line_segments:
         print_pairs("print_boundary_linesegments", b_lss)
     # b_lss = test_get_closed(b_lss)
@@ -358,7 +358,7 @@ def inside_local_true_sight(pt, center, radius, t_sight):
     # return not outside and (inside_open_sight or visible)
 
 
-def get_ref_csight_lss(center, radius, closed_sights):
+def get_ref_csight_lss(center, radius, closed_sights):  # Lay DAY CUNG CHAN tu cac DOAN CHAN "KHONG KHUAT"
     """
     get close sight line segments where is intersection of close points and circle
     """
@@ -449,8 +449,8 @@ def divide_open_cpair(center, inangle, vs, ve):
         # divide into 3 parts
         r_angle = angle / 3
         # print ("divide into 3 parts, with angle = ", math.degrees(r_angle))
-        v1 = rotate_vector_center(center, vs, -r_angle)
-        v2 = rotate_vector_center(center, vs, -2 * r_angle)
+        v1 = tuple(rotate_vector_center(center, vs, -r_angle))
+        v2 = tuple(rotate_vector_center(center, vs, -2 * r_angle))
         return_pairs.append([vs, v1])
         return_pairs.append([v1, v2])
         return_pairs.append([v2, ve])
@@ -458,7 +458,7 @@ def divide_open_cpair(center, inangle, vs, ve):
         # divide into 2 parts
         r_angle = angle / 2
         # print ("divide into 2 parts, with angle = ", math.degrees(r_angle))
-        v1 = rotate_vector_center(center, vs, -r_angle)
+        v1 = tuple(rotate_vector_center(center, vs, -r_angle))
         return_pairs.append([vs, v1])
         return_pairs.append([v1, ve])
     else:  # <= 120 degree
@@ -492,12 +492,12 @@ def get_osight_linesegments(center, radius, goal, close_cpairs):
         # print ("No obstacle detected")
         # check if goal is at center
         if not math.isclose(point_dist(goal, center), 0):
-            vector_cg_unit = unit_vector(np.subtract(goal, center))
+            vector_cg_unit = tuple(unit_vector(np.subtract(goal, center)))
         else:
-            vector_cg_unit = [1, 0]
+            vector_cg_unit = tuple((1, 0))
 
-        vs = np.multiply(vector_cg_unit, radius) + center
-        vs = rotate_vector_center(center, vs, math.pi / 3)
+        vs = np.add(np.multiply(vector_cg_unit, radius),center)
+        vs = tuple(rotate_vector_center(center, vs, math.pi / 3))
 
         pairs_extend = divide_open_cpair_complement(center, [vs, vs])
         for pair in pairs_extend:
