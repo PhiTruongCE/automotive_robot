@@ -137,9 +137,7 @@ void move(double distance, automotive_robot::Point &next_point) {
             velocity_publisher.publish(vel_msg);
             cout<<"Initial: "<<(current/ M_PI * 180)<<" Velocity: "<< vel_msg.linear.x <<endl;
             cout<<"Time: "<<now - temp<<endl;
-            //if (now - temp <= small_acceleration_duration) 
-            small_acceleration_duration_modification = small_acceleration_duration - (now - temp - small_acceleration_duration_modification);
-            //else small_acceleration_duration_modification = 2*small_acceleration_duration - now + temp; //small_acceleration_duration - (now - temp - small_acceleration_duration);    
+            small_acceleration_duration_modification = small_acceleration_duration - (now - temp - small_acceleration_duration_modification);    
             cout<<"Modification: "<<small_acceleration_duration_modification<<endl<<endl;
             temp = now; //mark temp as soon as possible
         }
@@ -147,6 +145,11 @@ void move(double distance, automotive_robot::Point &next_point) {
             vel_msg.angular.z = (current<0)?MV_ANGULAR_SPEED:-MV_ANGULAR_SPEED;
             velocity_publisher.publish(vel_msg);
             temp_temp = now;    //mark the time the robot starts rotating
+            //Opps code 
+            if (!is_rotating){
+                cout<<"Opps!!!"<<endl;
+            }
+
             is_rotating = true;
         }
         else if(is_rotating && now - temp_temp >= small_rotate_time){
@@ -171,6 +174,11 @@ void move(double distance, automotive_robot::Point &next_point) {
             vel_msg.angular.z = (current<0)?MV_ANGULAR_SPEED:-MV_ANGULAR_SPEED;
             velocity_publisher.publish(vel_msg);
             temp = now;    //mark the time the robot starts rotating
+            //Opps code 
+            if (!is_rotating){
+                cout<<"Opps!!!"<<endl;
+            }
+
             is_rotating = true;
         }
         else if(is_rotating && now - temp >= small_rotate_time){
@@ -178,7 +186,7 @@ void move(double distance, automotive_robot::Point &next_point) {
             velocity_publisher.publish(vel_msg);
             is_rotating = false;
         }
-        if(now - temp_temp >= small_acceleration_duration){
+        if(now - temp_temp >= small_acceleration_duration){ //check angle and velocity while moving stably 
             cout<<"Fast: "<<(current/ M_PI * 180)<<" Velocity: "<< vel_msg.linear.x <<endl;
             temp_temp = now;
         }
@@ -202,10 +210,8 @@ void move(double distance, automotive_robot::Point &next_point) {
             vel_msg.linear.x -= vel_change;
             velocity_publisher.publish(vel_msg);
             cout<<"Decrease: "<<(current/ M_PI * 180)<<" Velocity: "<< vel_msg.linear.x <<endl;
-            cout<<"Time: "<<now - temp<<endl;
-            //if (now - temp <= small_acceleration_duration) 
-            small_deceleration_duration_modification = small_deceleration_duration - (now - temp - small_deceleration_duration_modification);
-            //else small_acceleration_duration_modification = 2*small_acceleration_duration - now + temp; //small_acceleration_duration - (now - temp - small_acceleration_duration);    
+            cout<<"Time: "<<now - temp<<endl; 
+            small_deceleration_duration_modification = small_deceleration_duration - (now - temp - small_deceleration_duration_modification);    
             cout<<"Modification: "<<small_deceleration_duration_modification<<endl<<endl;
             temp = now; //mark temp as soon as possible
         }
@@ -213,6 +219,11 @@ void move(double distance, automotive_robot::Point &next_point) {
             vel_msg.angular.z = (current<0)?MV_ANGULAR_SPEED:-MV_ANGULAR_SPEED;
             velocity_publisher.publish(vel_msg);
             temp_temp = now;    //mark the time the robot starts rotating
+            //Opps code 
+            if (!is_rotating){
+                cout<<"Opps!!!"<<endl;
+            }
+
             is_rotating = true;
         }
         else if(is_rotating && now - temp_temp >= small_rotate_time){
@@ -241,6 +252,11 @@ void move(double distance, automotive_robot::Point &next_point) {
             vel_msg.angular.z = (current<0)?MV_ANGULAR_SPEED:-MV_ANGULAR_SPEED;
             velocity_publisher.publish(vel_msg);
             temp = now;    //mark the time the robot starts rotating
+            //Opps code 
+            if (!is_rotating){
+                cout<<"Opps!!!"<<endl;
+            }
+            
             is_rotating = true;
         }
         else if(is_rotating && now - temp >= small_rotate_time){
@@ -307,10 +323,10 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg) // robot_motion::
     ROS_INFO("I heard: [%f,%f]", msg->points[loops - 1].x,
             msg->points[loops - 1].y);
     
-    string input;
-    cout<<"Before Moving: ";
-    cin>>input;
-    cout<<endl;
+    // string input;
+    // cout<<"Before Moving: ";
+    // cin>>input;
+    // cout<<endl;
 
     for (unsigned i = 1; i < loops; i++) {
         //

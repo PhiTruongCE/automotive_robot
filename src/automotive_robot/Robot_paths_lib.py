@@ -349,6 +349,7 @@ def approximately_sp_ls(critical_ls, spt, gpt):
             path.append(tuple(pt))  # middle point of critical line segments
             i = i + 1
         path.append(gpt)  # end point
+
         flag_asp.append(False)
         flag_asp = [True for k in range(len(path) - 2)]
         flag_asp.append(False)
@@ -370,13 +371,13 @@ def approximately_sp_ls(critical_ls, spt, gpt):
                         d2 = point_dist(path[i - 1], critical_ls[i - 1][2]) + \
                             point_dist(path[i + 1], critical_ls[i - 1][2])
                         if d1 > d2:
-                            if not math.isclose(point_dist(path[i],critical_ls[i-1][2])):
+                            if not math.isclose(point_dist(path[i],critical_ls[i-1][2]),0):
                                 path[i] = tuple(critical_ls[i - 1][2])
                                 flag_asp[i] = True
                             else:
                                 flag_asp[i] = False
                         else:
-                            if not math.isclose(point_dist(path[i],critical_ls[i-1][1])):
+                            if not math.isclose(point_dist(path[i],critical_ls[i-1][1]),0):
                                 path[i] = tuple(critical_ls[i - 1][1])
                                 flag_asp[i] = True
                             else:

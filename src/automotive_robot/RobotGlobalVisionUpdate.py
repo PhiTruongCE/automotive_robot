@@ -76,6 +76,8 @@ def updateGlobalVisionCallBack(msg):
 
     ob = read_map_csv(world_name + ".csv")
 
+    #tia duoi
+
     for obstacle in ob:
         i = 0
         obstacle.pop()
@@ -125,7 +127,7 @@ def updateGlobalVisionCallBack(msg):
     # find configure space: ob1 = find_configure_space(ob)
     center = (cpos[0], cpos[1])
 
-    ob = find_configure_space(ob, config.robot_radius)
+    ob = find_configure_space_update_2(ob, config.robot_radius)
     
     #print(ob)
 
