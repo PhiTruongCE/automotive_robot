@@ -125,10 +125,8 @@ void move(double distance, automotive_robot::Point &next_point) {
     auto temp = start;
     auto now = start;
     auto temp_temp = start;
-    int not_use = 0;
     bool is_rotating = false;
     int small_acceleration_duration_modification = small_acceleration_duration;
-    string debug;
     start -= small_acceleration_duration; // bc we move the robot immadiately
     do {
         now = duration_cast<milliseconds>(system_clock::now().time_since_epoch())
@@ -310,40 +308,40 @@ void move(double distance, automotive_robot::Point &next_point) {
 // rotate clockwise
 void rotate(double relative_angle, double direction) {
 
-  const double close_rotate_tolerance = ((double(0.75) / 180) * M_PI);
+    const double close_rotate_tolerance = ((double(0.75) / 180) * M_PI);
 
-  // set a random linear velocity in the x-axis
-  vel_msg.linear.x = 0;
-  vel_msg.linear.y = 0;
-  vel_msg.linear.z = 0;
-  // set a random angular velocity in the y-axis
-  vel_msg.angular.x = 0;
-  vel_msg.angular.y = 0;
-  vel_msg.angular.z = ((relative_angle < 0) ? -1 : 1) * STABLE_ANGULAR_SPEED;
+    // set a random linear velocity in the x-axis
+    vel_msg.linear.x = 0;
+    vel_msg.linear.y = 0;
+    vel_msg.linear.z = 0;
+    // set a random angular velocity in the y-axis
+    vel_msg.angular.x = 0;
+    vel_msg.angular.y = 0;
+    vel_msg.angular.z = ((relative_angle < 0) ? -1 : 1) * STABLE_ANGULAR_SPEED;
 
-  velocity_publisher.publish(vel_msg);
-  while (abs(odomAngleXaxis - direction) > stable_rotate_tolerance) {
-    continue;
-  }
-
-  vel_msg.angular.z = ((relative_angle < 0) ? -1 : 1) * CLOSE_ANGULAR_SPEED;
-  velocity_publisher.publish(vel_msg);
-  double before = abs(odomAngleXaxis - direction);
-  while (before > close_rotate_tolerance) {
-    double after = abs(direction - odomAngleXaxis);
-    if (after > before) {
-      vel_msg.angular.z = -vel_msg.angular.z;
-      velocity_publisher.publish(vel_msg);
+    velocity_publisher.publish(vel_msg);
+    while (abs(odomAngleXaxis - direction) > stable_rotate_tolerance) {
+        continue;
     }
-    before = after;
-    continue;
-  }
 
-  vel_msg.angular.z = 0;
-  // ROS_INFO("Odom Angle Axis After Rotate: [%f]", odomAngleXaxis / M_PI *
-  // 180);
-  velocity_publisher.publish(vel_msg);
-  usleep(500000);
+    vel_msg.angular.z = ((relative_angle < 0) ? -1 : 1) * CLOSE_ANGULAR_SPEED;
+    velocity_publisher.publish(vel_msg);
+    double before = abs(odomAngleXaxis - direction);
+    while (before > close_rotate_tolerance) {
+        double after = abs(direction - odomAngleXaxis);
+        if (after > before) {
+        vel_msg.angular.z = -vel_msg.angular.z;
+        velocity_publisher.publish(vel_msg);
+        }
+        before = after;
+        continue;
+    }
+
+    vel_msg.angular.z = 0;
+    // ROS_INFO("Odom Angle Axis After Rotate: [%f]", odomAngleXaxis / M_PI *
+    // 180);
+    velocity_publisher.publish(vel_msg);
+    usleep(500000);
 }
 
 void moveCallback(const automotive_robot::Path::ConstPtr &msg) 
@@ -351,29 +349,25 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg)
     unsigned loops = msg->points.size();
     ROS_INFO("I heard: [%f,%f]", msg->points[loops - 1].x, msg->points[loops - 1].y);
 
+    double direction = Direction(cpos, msg->points[1]);
+    double angleDiff = direction - odomAngleXaxis;
+    if (odomAngleXaxis > 0 && M_PI < (odomAngleXaxis - direction)) angleDiff = 2 * M_PI - odomAngleXaxis + direction;
+    else if (odomAngleXaxis < 0 && M_PI < (-odomAngleXaxis + direction)) angleDiff = -2 * M_PI + direction + odomAngleXaxis;
+    rotate(angleDiff, direction);
+
     if(loops == 2){
-        automotive_robot::Point nextPt = msg->points[i];
+        automotive_robot::Point nextPt = msg->points[1];
         ROS_INFO("CPOS: [%f : %f]", cpos.x, cpos.y);
         ROS_INFO("Next Point: [%f : %f]", nextPt.x, nextPt.y);
-        
-        double direction = Direction(cpos, nextPt);
-        double angleDiff = direction - odomAngleXaxis;
-
-        if (odomAngleXaxis > 0 && M_PI < (odomAngleXaxis - direction))
-        angleDiff = 2 * M_PI - odomAngleXaxis + direction;
-        else if (odomAngleXaxis < 0 && M_PI < (-odomAngleXaxis + direction))
-        angleDiff = -2 * M_PI + direction + odomAngleXaxis;
         double distance = sqrt(pow(cpos.x - nextPt.x, 2) + pow(cpos.y - nextPt.y, 2) * 1.0);
-
-        rotate(angleDiff, direction);
         move(distance, nextPt);
     }
     
     else {
+        cout<<"Co nhieu duong gap khuc"<<endl;
         vel_msg.linear.x = vel_change;
         vel_msg.linear.y = 0;
         vel_msg.linear.z = 0;
-        // set a random angular velocity in the y-axis
         vel_msg.angular.x = 0;
         vel_msg.angular.y = 0;
         vel_msg.angular.z = 0;
@@ -384,10 +378,8 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg)
         auto temp = start;
         auto now = start;
         auto temp_temp = start;
-        int not_use = 0;
         bool is_rotating = false;
         int small_acceleration_duration_modification = small_acceleration_duration;
-        string debug;
         start -= small_acceleration_duration; // bc we move the robot immadiately
         automotive_robot::Point next_point = msg->points[1];
         do {
@@ -430,30 +422,30 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg)
 
         // stable moving 
         loops--;    // pay attention please
-        float start_bending_distance = 0.1; // tam thoi cho nhu vay
+        float start_bending_distance = 0.15; // tam thoi cho nhu vay
         for(unsigned i = 1 ; i < loops; i++){
             next_point = msg->points[i];
             automotive_robot::Point start_bending_point;
             automotive_robot::Point stop_bending_point;
-            float vector_point_to_start_bending_point[2] = {msg->points[i - 1].x - msg->points[i].x, msg->points[i - 1].y - msg->points[i].y};
-            float vector_point_to_stop_bending_point[2] = {msg->points[i + 1].x - msg->points[i].x, msg->points[i + 1].y - msg->points[i].y};
+            float vector_nextPoint_to_start_bending_point[2] = {msg->points[i - 1].x - msg->points[i].x, msg->points[i - 1].y - msg->points[i].y};
+            float vector_nextPoint_to_stop_bending_point[2] = {msg->points[i + 1].x - msg->points[i].x, msg->points[i + 1].y - msg->points[i].y};
             
-            float distance__start_point = sqrt(vector_point_to_start_bending_point[0]*vector_point_to_start_bending_point[0] 
-                + vector_point_to_start_bending_point[1]*vector_point_to_start_bending_point[1]);
-            float distance_end_point = sqrt(vector_point_to_stop_bending_point[0]*vector_point_to_stop_bending_point[0] 
-                + vector_point_to_stop_bending_point[1]*vector_point_to_stop_bending_point[1]);
+            float distance_from_nextPoint_to_start_point = sqrt(vector_nextPoint_to_start_bending_point[0]*vector_nextPoint_to_start_bending_point[0] 
+                + vector_nextPoint_to_start_bending_point[1]*vector_nextPoint_to_start_bending_point[1]);
+            float distance_from_nextPoint_to_end_point = sqrt(vector_nextPoint_to_stop_bending_point[0]*vector_nextPoint_to_stop_bending_point[0] 
+                + vector_nextPoint_to_stop_bending_point[1]*vector_nextPoint_to_stop_bending_point[1]);
             
-            vector_point_to_start_bending_point[0] = vector_point_to_start_bending_point[0]/distance__start_point*start_bending_distance;
-            vector_point_to_start_bending_point[1] = vector_point_to_start_bending_point[1]/distance__start_point*start_bending_distance;
+            vector_nextPoint_to_start_bending_point[0] = vector_nextPoint_to_start_bending_point[0]/distance_from_nextPoint_to_start_point*start_bending_distance;
+            vector_nextPoint_to_start_bending_point[1] = vector_nextPoint_to_start_bending_point[1]/distance_from_nextPoint_to_start_point*start_bending_distance;
 
-            vector_point_to_stop_bending_point[0] = vector_point_to_stop_bending_point[0]/distance_end_point*start_bending_distance;
-            vector_point_to_stop_bending_point[1] = vector_point_to_stop_bending_point[1]/distance_end_point*start_bending_distance;
+            vector_nextPoint_to_stop_bending_point[0] = vector_nextPoint_to_stop_bending_point[0]/distance_from_nextPoint_to_end_point*start_bending_distance;
+            vector_nextPoint_to_stop_bending_point[1] = vector_nextPoint_to_stop_bending_point[1]/distance_from_nextPoint_to_end_point*start_bending_distance;
 
-            start_bending_point.x = msg->points[i].x + vector_point_to_start_bending_point[0];
-            start_bending_point.y = msg->points[i].y + vector_point_to_start_bending_point[1];
+            start_bending_point.x = msg->points[i].x + vector_nextPoint_to_start_bending_point[0];
+            start_bending_point.y = msg->points[i].y + vector_nextPoint_to_start_bending_point[1];
 
-            stop_bending_point.x = msg->points[i].x + vector_point_to_stop_bending_point[0];
-            stop_bending_point.y = msg->points[i].y + vector_point_to_stop_bending_point[1];
+            stop_bending_point.x = msg->points[i].x + vector_nextPoint_to_stop_bending_point[0];
+            stop_bending_point.y = msg->points[i].y + vector_nextPoint_to_stop_bending_point[1];
 
             vel_msg.linear.x = MAX_MV_SPEED; // force velocity to be maximum bc velocity
             // might not be maximum
@@ -489,17 +481,26 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg)
                 }
             }
 
+            vel_msg.angular.z = 0; // force stop rotating bc the robot might still be rotating
+            velocity_publisher.publish(vel_msg);
+            is_rotating = false;
             // be huong voi ban kinh cong R
-            float alpha = acos((vector_point_to_start_bending_point[0]*vector_point_to_stop_bending_point[0] 
-            + vector_point_to_start_bending_point[1]*vector_point_to_stop_bending_point[1]) / (start_bending_distance*start_bending_distance));
+            float alpha = acos((vector_nextPoint_to_start_bending_point[0]*vector_nextPoint_to_stop_bending_point[0] 
+            + vector_nextPoint_to_start_bending_point[1]*vector_nextPoint_to_stop_bending_point[1]) / (start_bending_distance*start_bending_distance));
 
             float R = tan(alpha/2)*start_bending_distance;
 
-            vel_msg.angular.z = MAX_MV_SPEED/R;     // v = R*W;
+            automotive_robot::Point direction_forcing_point = msg->points[i+1];
+            double direction = Direction(cpos, direction_forcing_point);
+            double angleDiff = direction - odomAngleXaxis;
+            if (odomAngleXaxis > 0 && M_PI < (odomAngleXaxis - direction)) angleDiff = 2 * M_PI - odomAngleXaxis + direction;
+            else if (odomAngleXaxis < 0 && M_PI < (-odomAngleXaxis + direction)) angleDiff = -2 * M_PI + direction + odomAngleXaxis;
+
+            vel_msg.angular.z = ((angleDiff < 0) ? -1 : 1)*MAX_MV_SPEED/R;     // v = R*W;
             velocity_publisher.publish(vel_msg);    // start bending
-            double direction = Direction(cpos, next_point);
+            direction = Direction(cpos, direction_forcing_point);
             while(abs(odomAngleXaxis - direction) > close_rotate_tolerance){
-                direction = Direction(cpos, next_point);
+                direction = Direction(cpos, direction_forcing_point);
             }
 
             vel_msg.angular.z = 0;     
