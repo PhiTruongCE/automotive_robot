@@ -7,6 +7,7 @@
 #include "ros/ros.h"
 #include "std_msgs/String.h"
 #include "tf/transform_datatypes.h"
+#include <cstdint>
 #include <nav_msgs/Odometry.h>
 
 #include <chrono>
@@ -20,9 +21,7 @@
 #include <vector>
 
 //#define CLOSE_MV_SPEED 0.05                              // square_unit/s
-#define STABLE_ANGULAR_SPEED ((double(20) / 180) * M_PI) // radian/s
-#define CLOSE_ANGULAR_SPEED ((double(10) / 180) * M_PI)  // radian/s
-#define MV_ANGULAR_SPEED ((double(7) / 180) * M_PI)      // radian/s
+#define ALIGN_WHILE_MOVING_ANGULAR_SPEED ((double(7) / 180) * M_PI)      // radian/s
 
 using namespace std;
 using std::chrono::duration_cast;
@@ -34,17 +33,11 @@ ros::Publisher moveFinished_publisher;
 geometry_msgs::Twist vel_msg;
 automotive_robot::Point cpos;
 double odomAngleXaxis = 0;
-// double c_pos[2] = {0, 0};
-
-const double stable_rotate_tolerance = 0.2;
-const int n = 6;
 
 void move(double distance, automotive_robot::Point &nextPt);
 void rotate(double relative_angle, double direction);
 void moveCallback(const automotive_robot::Path::ConstPtr &msg);
 void odomCallback(const nav_msgs::Odometry::ConstPtr &msg);
-
-// bool volatile flag_check_angle = true;
 
 int main(int argc, char **argv) {
   // Initiate new ROS node named "talker"
@@ -97,18 +90,43 @@ double Direction(const volatile automotive_robot::Point &p1, const automotive_ro
 
 const float MAX_MV_SPEED = 0.18;      // square_unit/s
 const float deceleration_time = 3000; // miliseconds
-const float acceleration_time = 3000; // miliseconds
-const float stable_moving_tolerance =(MAX_MV_SPEED * deceleration_time / 2000) * (MAX_MV_SPEED * deceleration_time / 2000);
+
+
 const int smooth_level = 20;
-const int small_acceleration_duration = acceleration_time / smooth_level;
 const int small_deceleration_duration = deceleration_time / smooth_level;
 const float vel_change = MAX_MV_SPEED / smooth_level;
-const float close_rotate_tolerance = ((double(0.5) / 180) * M_PI);
-const int small_rotate_time = (close_rotate_tolerance / MV_ANGULAR_SPEED) * 1000;
+const float close_rotate_tolerance_while_moving = ((double(0.5) / 180) * M_PI);
+const int small_rotate_time = (close_rotate_tolerance_while_moving / ALIGN_WHILE_MOVING_ANGULAR_SPEED) * 1000;
+const float stable_moving_tolerance =(MAX_MV_SPEED * deceleration_time / 2000) * (MAX_MV_SPEED * deceleration_time / 2000);
 
-void move(double distance, automotive_robot::Point &next_point) {
+void print_anglular_diff_periodically(int64_t &mark_last_print, double angleDiff, const string typeOfMoving){
+    auto now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    unsigned short print_period = 200;
+    if (now - mark_last_print > print_period){
+        mark_last_print = now;
+        cout << typeOfMoving <<": " << (current / M_PI * 180) << " Velocity: " << vel_msg.linear.x << endl;
+    }
+}
 
-    ROS_INFO("Moving start!");
+void adjust_moving_direction(bool &is_rotating, double current_angle_diff, int64_t &mark_start_rotate){
+    auto now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    if (abs(current_angle_diff) > close_rotate_tolerance_while_moving) {
+        mark_start_rotate = now; // mark mark_last_accelerate as soon as possible = now; // mark the time the robot starts rotating
+        vel_msg.angular.z = (current_angle_diff < 0) ? ALIGN_WHILE_MOVING_ANGULAR_SPEED : -ALIGN_WHILE_MOVING_ANGULAR_SPEED;
+        velocity_publisher.publish(vel_msg);
+        is_rotating = true;
+    } 
+    else if (is_rotating && now - mark_start_rotate >= small_rotate_time){
+        vel_msg.angular.z = 0;
+        velocity_publisher.publish(vel_msg);
+        is_rotating = false;
+    }
+}
+
+void moving_accelerate(automotive_robot::Point &next_point){   // chi lam dung chuc nang tang toc
+    const float acceleration_time = 3000; // miliseconds
+    const int small_acceleration_duration = acceleration_time / smooth_level;
+
     vel_msg.linear.x = vel_change;
     vel_msg.linear.y = 0;
     vel_msg.linear.z = 0;
@@ -119,12 +137,12 @@ void move(double distance, automotive_robot::Point &next_point) {
 
     velocity_publisher.publish(vel_msg);
 
-    auto start =
-        duration_cast<milliseconds>(system_clock::now().time_since_epoch())
-            .count();
-    auto temp = start;
+    auto start = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    auto mark_last_accelerate = start;
+    auto mark_start_rotate = start;
+    auto mark_last_print = start;
+    
     auto now = start;
-    auto temp_temp = start;
     bool is_rotating = false;
     int small_acceleration_duration_modification = small_acceleration_duration;
     start -= small_acceleration_duration; // bc we move the robot immadiately
@@ -132,132 +150,141 @@ void move(double distance, automotive_robot::Point &next_point) {
         now = duration_cast<milliseconds>(system_clock::now().time_since_epoch())
                 .count();
         double direction = Direction(cpos, next_point);
-        double current = odomAngleXaxis - direction;
-        if (now - temp >= small_acceleration_duration_modification) {
-        vel_msg.linear.x += vel_change;
-        velocity_publisher.publish(vel_msg);
-        cout << "Initial: " << (current / M_PI * 180)
-            << " Velocity: " << vel_msg.linear.x << endl;
-        cout << "Time: " << now - temp << endl;
-        small_acceleration_duration_modification =
-            small_acceleration_duration -
-            (now - temp - small_acceleration_duration_modification);
-        cout << "Modification: " << small_acceleration_duration_modification
-            << endl
-            << endl;
-        temp = now; // mark temp as soon as possible
+        double current_angle_diff = odomAngleXaxis - direction;
+        if (now - mark_last_accelerate >= small_acceleration_duration_modification) {
+            mark_last_accelerate = now; // mark temp as soon as possible
+            vel_msg.linear.x += vel_change;
+            velocity_publisher.publish(vel_msg);
+            cout << "Time: " << now - mark_last_accelerate << endl;
+            small_acceleration_duration_modification = small_acceleration_duration - (now - mark_last_accelerate - small_acceleration_duration_modification);
+            cout << "Modification: " << small_acceleration_duration_modification << endl << endl;
         }
-        if (abs(current) > close_rotate_tolerance) {
-        vel_msg.angular.z = (current < 0) ? MV_ANGULAR_SPEED : -MV_ANGULAR_SPEED;
-        velocity_publisher.publish(vel_msg);
-        temp_temp = now; // mark the time the robot starts rotating
-        // Opps code
-        if (!is_rotating) {
-            cout << "Opps!!!" << endl;
+        if (abs(current_angle_diff) > close_rotate_tolerance_while_moving) {
+            mark_start_rotate = now; // mark mark_last_accelerate as soon as possible = now; // mark the time the robot starts rotating
+            vel_msg.angular.z = (current_angle_diff < 0) ? ALIGN_WHILE_MOVING_ANGULAR_SPEED : -ALIGN_WHILE_MOVING_ANGULAR_SPEED;
+            velocity_publisher.publish(vel_msg);
+            is_rotating = true;
+        } else if (is_rotating && now - mark_start_rotate = now; // mark temp as soon as possible >= small_rotate_time) {
+            vel_msg.angular.z = 0;
+            velocity_publisher.publish(vel_msg);
+            is_rotating = false;
         }
-
-        is_rotating = true;
-        } else if (is_rotating && now - temp_temp >= small_rotate_time) {
-        vel_msg.angular.z = 0;
-        velocity_publisher.publish(vel_msg);
-        is_rotating = false;
-        }
+        print_anglular_diff_periodically(mark_last_print, current_angle_diff, "Accelerate");
     } while (now - start <= acceleration_time &&
             (cpos.x - next_point.x) * (cpos.x - next_point.x) +
                     (cpos.y - next_point.y) * (cpos.y - next_point.y) >
                 stable_moving_tolerance);
+}
 
+void stable_moving(automotive_robot::Point &next_point){
     vel_msg.linear.x = MAX_MV_SPEED; // force velocity to be maximum bc velocity
                                     // might not be maximum
-    vel_msg.angular.z =
-        0; // force stop rotating bc the robot might still be rotating
+    vel_msg.angular.z = 0; // force stop rotating bc the robot might still be rotating
     velocity_publisher.publish(vel_msg);
-    is_rotating = false;
-    temp_temp =
-        duration_cast<milliseconds>(system_clock::now().time_since_epoch())
-            .count(); // used for cout
+    bool is_rotating = false;
+    auto mark_last_print = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count(); // used for cout
+    auto mark_start_rotate = mark_last_print;
 
     while ((cpos.x - next_point.x) * (cpos.x - next_point.x) +
                 (cpos.y - next_point.y) * (cpos.y - next_point.y) >
             stable_moving_tolerance) {
         double direction = Direction(cpos, next_point);
-        double current = odomAngleXaxis - direction;
-        now = duration_cast<milliseconds>(system_clock::now().time_since_epoch())
-                .count();
-        if (abs(current) > close_rotate_tolerance) {
-        vel_msg.angular.z = (current < 0) ? MV_ANGULAR_SPEED : -MV_ANGULAR_SPEED;
-        velocity_publisher.publish(vel_msg);
-        temp = now; // mark the time the robot starts rotating
-        // Opps code
-        if (!is_rotating) {
-            cout << "Opps!!!" << endl;
+        double current_angle_diff = odomAngleXaxis - direction;
+        auto now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+        if (abs(current_angle_diff) > close_rotate_tolerance_while_moving) {
+            mark_start_rotate = now; // mark the time the robot starts rotating
+            vel_msg.angular.z = (current_angle_diff < 0) ? ALIGN_WHILE_MOVING_ANGULAR_SPEED : -ALIGN_WHILE_MOVING_ANGULAR_SPEED;
+            velocity_publisher.publish(vel_msg);
+            is_rotating = true;
+        } else if (is_rotating && now - mark_start_rotate >= small_rotate_time) {
+            vel_msg.angular.z = 0;
+            velocity_publisher.publish(vel_msg);
+            is_rotating = false;
         }
-
-        is_rotating = true;
-        } else if (is_rotating && now - temp >= small_rotate_time) {
-        vel_msg.angular.z = 0;
-        velocity_publisher.publish(vel_msg);
-        is_rotating = false;
-        }
-        if (now - temp_temp >=
-            small_acceleration_duration) { // check angle and velocity while moving
-                                        // stably
-        cout << "Fast: " << (current / M_PI * 180)
-            << " Velocity: " << vel_msg.linear.x << endl;
-        temp_temp = now;
-        }
+        print_anglular_diff_periodically(mark_last_print, current_angle_diff, "Stable Moving");
     }
+}
 
-    start = duration_cast<milliseconds>(system_clock::now().time_since_epoch())
-                .count();
-    temp = start;
-    now = start;
+void decelerate(automotive_robot::Point &next_point){
+    auto start = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    auto mark_start_rotate = start;
+    auto now = start;
+    auto mark_last_print = start;
+    auto mark_last_decelerate = start;
     start -= small_deceleration_duration;
 
     vel_msg.linear.x -= vel_change; // force velocity to decrease immediately
-    vel_msg.angular.z =
-        0; // force stop rotating bc the robot might still be rotating
+    vel_msg.angular.z = 0; // force stop rotating bc the robot might still be rotating
     velocity_publisher.publish(vel_msg);
-    is_rotating = false;
+    bool is_rotating = false;
     int small_deceleration_duration_modification = small_deceleration_duration;
     do {
-        now = duration_cast<milliseconds>(system_clock::now().time_since_epoch())
-                .count();
+        now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
         double direction = Direction(cpos, next_point);
-        double current = odomAngleXaxis - direction;
-        if (now - temp >= small_deceleration_duration_modification) {
-        vel_msg.linear.x -= vel_change;
-        velocity_publisher.publish(vel_msg);
-        cout << "Decrease: " << (current / M_PI * 180)
-            << " Velocity: " << vel_msg.linear.x << endl;
-        cout << "Time: " << now - temp << endl;
-        small_deceleration_duration_modification =
-            small_deceleration_duration -
-            (now - temp - small_deceleration_duration_modification);
-        cout << "Modification: " << small_deceleration_duration_modification
-            << endl
-            << endl;
-        temp = now; // mark temp as soon as possible
+        double current_angle_diff = odomAngleXaxis - direction;
+        if (now - mark_last_decelerate >= small_deceleration_duration_modification) {
+            vel_msg.linear.x -= vel_change;
+            velocity_publisher.publish(vel_msg);
+            small_deceleration_duration_modification = small_deceleration_duration - (now - mark_last_decelerate - small_deceleration_duration_modification);
+            mark_last_decelerate = now; // mark temp as soon as possible
         }
-        if (abs(current) > close_rotate_tolerance) {
-        vel_msg.angular.z = (current < 0) ? MV_ANGULAR_SPEED : -MV_ANGULAR_SPEED;
-        velocity_publisher.publish(vel_msg);
-        temp_temp = now; // mark the time the robot starts rotating
-        // Opps code
-        if (!is_rotating) {
-            cout << "Opps!!!" << endl;
+        if (abs(current_angle_diff) > close_rotate_tolerance_while_moving) {
+            vel_msg.angular.z = (current_angle_diff < 0) ? ALIGN_WHILE_MOVING_ANGULAR_SPEED : -ALIGN_WHILE_MOVING_ANGULAR_SPEED;
+            velocity_publisher.publish(vel_msg);
+            mark_start_rotate = now; // mark the time the robot starts rotating
+            is_rotating = true;
+        } 
+        else if (is_rotating && now - mark_start_rotate >= small_rotate_time) {
+            vel_msg.angular.z = 0;
+            velocity_publisher.publish(vel_msg);
+            is_rotating = false;
         }
-
-        is_rotating = true;
-        } else if (is_rotating && now - temp_temp >= small_rotate_time) {
-        vel_msg.angular.z = 0;
-        velocity_publisher.publish(vel_msg);
-        is_rotating = false;
-        }
+        print_anglular_diff_periodically(mark_last_print, current_angle_diff, "Decelerate");
     } while (now - start <= deceleration_time * 0.9);
+}
 
-    vel_msg.angular.z =
-        0; // force stop rotating bc the robot might still be rotating
+void very_slow_moving(automotive_robot::Point &next_point){
+    vel_msg.angular.z = 0; // force stop rotating bc the robot might still be rotating
+    velocity_publisher.publish(vel_msg);
+    bool is_rotating = false;
+    auto mark_start_rotate = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    auto mark_last_print = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+
+    while ((cpos.x - next_point.x) * (cpos.x - next_point.x) + (cpos.y - next_point.y) * (cpos.y - next_point.y) > stable_moving_tolerance / 400) {
+        double direction = Direction(cpos, next_point);
+        double current_angle_diff = odomAngleXaxis - direction;
+        if (abs(current_angle_diff) > 1.57) {
+            vel_msg.linear.x = 0;
+            vel_msg.angular.z = 0;
+            velocity_publisher.publish(vel_msg);
+            break;
+        }
+        auto now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+        if (abs(current_angle_diff) > close_rotate_tolerance_while_moving) {
+            vel_msg.angular.z = (current_angle_diff < 0) ? ALIGN_WHILE_MOVING_ANGULAR_SPEED : -ALIGN_WHILE_MOVING_ANGULAR_SPEED;
+            velocity_publisher.publish(vel_msg);
+            mark_start_rotate = now; // mark the time the robot starts rotating
+            is_rotating = true;
+        } 
+        else if (is_rotating && now - mark_start_rotate >= small_rotate_time) {
+            vel_msg.angular.z = 0;
+            velocity_publisher.publish(vel_msg);
+            is_rotating = false;
+        }
+        print_anglular_diff_periodically(mark_last_print, current_angle_diff, "Very Slow");
+    }
+}
+
+void move(double distance, automotive_robot::Point &next_point) {
+
+    ROS_INFO("Moving start!");
+    
+
+    
+
+    
+
+    vel_msg.angular.z = 0; // force stop rotating bc the robot might still be rotating
     velocity_publisher.publish(vel_msg);
     is_rotating = false;
     temp_temp =
@@ -277,8 +304,8 @@ void move(double distance, automotive_robot::Point &next_point) {
         }
         now = duration_cast<milliseconds>(system_clock::now().time_since_epoch())
                 .count();
-        if (abs(current) > close_rotate_tolerance) {
-        vel_msg.angular.z = (current < 0) ? MV_ANGULAR_SPEED : -MV_ANGULAR_SPEED;
+        if (abs(current) > close_rotate_tolerance_while_moving) {
+        vel_msg.angular.z = (current < 0) ? ALIGN_WHILE_MOVING_ANGULAR_SPEED : -ALIGN_WHILE_MOVING_ANGULAR_SPEED;
         velocity_publisher.publish(vel_msg);
         temp = now; // mark the time the robot starts rotating
         // Opps code
@@ -305,47 +332,113 @@ void move(double distance, automotive_robot::Point &next_point) {
     ROS_INFO("Moving done!");
 }
 
-// rotate clockwise
-void rotate(double relative_angle, double direction) {
+const double STABLE_ANGULAR_SPEED = ((double(30) / 180) * M_PI); // radian/s
+const double rotate_deceleration_time = 1000; //miliseconds
 
-    const double close_rotate_tolerance = ((double(0.75) / 180) * M_PI);
 
-    // set a random linear velocity in the x-axis
+void rotate_accelerate(bool rotate_right, double direction){
+    const int rotate_accelerate_time = 1500;    // miliseconds
+    const int rotate_smooth_level = 15;
+    const int small_rotate_acceleration_duration = rotate_accelerate_time / (rotate_smooth_level - 1);
+    const double rotate_change = STABLE_ANGULAR_SPEED/rotate_smooth_level*((rotate_right)?-1:1);
+    const double accelerate_rotate_tolerance = ((STABLE_ANGULAR_SPEED)*(STABLE_ANGULAR_SPEED) - (0.2*STABLE_ANGULAR_SPEED)*(0.2*STABLE_ANGULAR_SPEED))
+                                                /(2*0.8*STABLE_ANGULAR_SPEED/rotate_deceleration_time);
+
     vel_msg.linear.x = 0;
     vel_msg.linear.y = 0;
     vel_msg.linear.z = 0;
     // set a random angular velocity in the y-axis
     vel_msg.angular.x = 0;
     vel_msg.angular.y = 0;
-    vel_msg.angular.z = ((relative_angle < 0) ? -1 : 1) * STABLE_ANGULAR_SPEED;
+    vel_msg.angular.z = rotate_change;
 
     velocity_publisher.publish(vel_msg);
-    while (abs(odomAngleXaxis - direction) > stable_rotate_tolerance) {
-        continue;
+
+    auto start = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    auto temp = start;
+    auto now = start;
+    int small_rotate_acceleration_duration_modification = small_rotate_acceleration_duration;
+    double current;
+    do {
+        now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+        current = odomAngleXaxis - direction;
+        if (now - temp >= small_rotate_acceleration_duration_modification) {
+            vel_msg.linear.z += rotate_change;
+            velocity_publisher.publish(vel_msg);
+            small_rotate_acceleration_duration_modification = small_rotate_acceleration_duration - (now - temp - small_rotate_acceleration_duration_modification);
+            temp = now; // mark temp as soon as possible
+        }
+    } while (now - start <= rotate_accelerate_time && abs(current) > accelerate_rotate_tolerance*1.15);
+}
+
+void stable_rotate(double direction){
+    const double stable_rotate_tolerance = ((STABLE_ANGULAR_SPEED)*(STABLE_ANGULAR_SPEED) - (0.2*STABLE_ANGULAR_SPEED)*(0.2*STABLE_ANGULAR_SPEED))
+                                                /(2*0.8*STABLE_ANGULAR_SPEED/rotate_deceleration_time);
+    while (abs(direction - odomAngleXaxis) > stable_rotate_tolerance*1.15) {
     }
+}
 
-    vel_msg.angular.z = ((relative_angle < 0) ? -1 : 1) * CLOSE_ANGULAR_SPEED;
+void rotate_decelerate(bool rotate_right, double direction){
+    const int rotate_smooth_level = 15;
+    const int small_rotate_deceleration_duration = rotate_deceleration_time / (rotate_smooth_level - 1);
+    const double rotate_change = STABLE_ANGULAR_SPEED*0.8/rotate_smooth_level*((rotate_right)?-1:1);
+
+    vel_msg.linear.x = 0;
+    vel_msg.linear.y = 0;
+    vel_msg.linear.z = 0;
+    // set a random angular velocity in the y-axis
+    vel_msg.angular.x = 0;
+    vel_msg.angular.y = 0;
+    vel_msg.angular.z -= rotate_change; // -= not = 
+
     velocity_publisher.publish(vel_msg);
+
+    auto start = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+    auto temp = start;
+    auto now = start;
+    int small_rotate_deceleration_duration_modification = small_rotate_deceleration_duration;
+    double current;
+    do {
+        now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
+        current = odomAngleXaxis - direction;
+        if (now - temp >= small_rotate_deceleration_duration_modification) {
+            vel_msg.linear.z -= rotate_change;
+            velocity_publisher.publish(vel_msg);
+            small_rotate_deceleration_duration_modification = small_rotate_deceleration_duration - (now - temp - small_rotate_deceleration_duration);
+            temp = now; // mark temp as soon as possible
+        }
+    } while (now - start <= rotate_deceleration_time);
+}
+
+void very_slow_rotate(double direction){
+    const double close_rotate_tolerance = ((double(0.5) / 180) * M_PI);
     double before = abs(odomAngleXaxis - direction);
     while (before > close_rotate_tolerance) {
         double after = abs(direction - odomAngleXaxis);
         if (after > before) {
-        vel_msg.angular.z = -vel_msg.angular.z;
-        velocity_publisher.publish(vel_msg);
+            vel_msg.angular.z = -vel_msg.angular.z;
+            velocity_publisher.publish(vel_msg);
         }
         before = after;
-        continue;
     }
+}
+
+// rotate clockwise
+void rotate(bool rotate_right, double direction) {  
+    rotate_accelerate(rotate_right, direction);
+
+    stable_rotate(direction);
+
+    rotate_decelerate(rotate_right, direction);
+
+    very_slow_rotate(direction);
 
     vel_msg.angular.z = 0;
-    // ROS_INFO("Odom Angle Axis After Rotate: [%f]", odomAngleXaxis / M_PI *
-    // 180);
     velocity_publisher.publish(vel_msg);
     usleep(500000);
 }
 
-void moveCallback(const automotive_robot::Path::ConstPtr &msg) 
-{
+void moveCallback(const automotive_robot::Path::ConstPtr &msg) {
     unsigned loops = msg->points.size();
     ROS_INFO("I heard: [%f,%f]", msg->points[loops - 1].x, msg->points[loops - 1].y);
 
@@ -353,7 +446,8 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg)
     double angleDiff = direction - odomAngleXaxis;
     if (odomAngleXaxis > 0 && M_PI < (odomAngleXaxis - direction)) angleDiff = 2 * M_PI - odomAngleXaxis + direction;
     else if (odomAngleXaxis < 0 && M_PI < (-odomAngleXaxis + direction)) angleDiff = -2 * M_PI + direction + odomAngleXaxis;
-    rotate(angleDiff, direction);
+    bool rotate_right = (angleDiff < 0) ? true : false;
+    rotate(rotate_right, direction);
 
     if(loops == 2){
         automotive_robot::Point nextPt = msg->points[1];
@@ -395,8 +489,8 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg)
                 cout << "Modification: " << small_acceleration_duration_modification << endl << endl;
                 temp = now; // mark temp as soon as possible
             }
-            if (abs(current) > close_rotate_tolerance) {
-                vel_msg.angular.z = (current < 0) ? MV_ANGULAR_SPEED : -MV_ANGULAR_SPEED;
+            if (abs(current) > close_rotate_tolerance_while_moving) {
+                vel_msg.angular.z = (current < 0) ? ALIGN_WHILE_MOVING_ANGULAR_SPEED : -ALIGN_WHILE_MOVING_ANGULAR_SPEED;
                 velocity_publisher.publish(vel_msg);
                 temp_temp = now; // mark the time the robot starts rotating
                 // Opps code
@@ -459,8 +553,8 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg)
                 double direction = Direction(cpos, next_point);
                 double current = odomAngleXaxis - direction;
                 now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-                if (abs(current) > close_rotate_tolerance) {
-                    vel_msg.angular.z = (current < 0) ? MV_ANGULAR_SPEED : -MV_ANGULAR_SPEED;
+                if (abs(current) > close_rotate_tolerance_while_moving) {
+                    vel_msg.angular.z = (current < 0) ? ALIGN_WHILE_MOVING_ANGULAR_SPEED : -ALIGN_WHILE_MOVING_ANGULAR_SPEED;
                     velocity_publisher.publish(vel_msg);
                     temp = now; // mark the time the robot starts rotating
                     // Opps code
@@ -498,10 +592,8 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg)
 
             vel_msg.angular.z = ((angleDiff < 0) ? -1 : 1)*MAX_MV_SPEED/R;     // v = R*W;
             velocity_publisher.publish(vel_msg);    // start bending
-            direction = Direction(cpos, direction_forcing_point);
-            while(abs(odomAngleXaxis - direction) > close_rotate_tolerance){
-                direction = Direction(cpos, direction_forcing_point);
-            }
+            direction = Direction(next_point, direction_forcing_point);
+            while(abs(odomAngleXaxis - direction) > close_rotate_tolerance_while_moving){}
 
             vel_msg.angular.z = 0;     
             velocity_publisher.publish(vel_msg);    // stop bending
@@ -514,16 +606,16 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg)
             double direction = Direction(cpos, next_point);
             double current = odomAngleXaxis - direction;
             now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-            if (abs(current) > close_rotate_tolerance) {
-            vel_msg.angular.z = (current < 0) ? MV_ANGULAR_SPEED : -MV_ANGULAR_SPEED;
-            velocity_publisher.publish(vel_msg);
-            temp = now; // mark the time the robot starts rotating
-            // Opps code
-            if (!is_rotating) {
-                cout << "Opps!!!" << endl;
-            }
+            if (abs(current) > close_rotate_tolerance_while_moving) {
+                vel_msg.angular.z = (current < 0) ? ALIGN_WHILE_MOVING_ANGULAR_SPEED : -ALIGN_WHILE_MOVING_ANGULAR_SPEED;
+                velocity_publisher.publish(vel_msg);
+                temp = now; // mark the time the robot starts rotating
+                // Opps code
+                if (!is_rotating) {
+                    cout << "Opps!!!" << endl;
+                }
 
-            is_rotating = true;
+                is_rotating = true;
             } 
             else if (is_rotating && now - temp >= small_rotate_time) {
                 vel_msg.angular.z = 0;
@@ -554,14 +646,14 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg)
             if (now - temp >= small_deceleration_duration_modification) {
                 vel_msg.linear.x -= vel_change;
                 velocity_publisher.publish(vel_msg);
-                cout << "Decrease: " << (current / M_PI * 180)<< " Velocity: " << vel_msg.linear.x << endl;
+                cout << "Deaccelerate: " << (current / M_PI * 180)<< " Velocity: " << vel_msg.linear.x << endl;
                 cout << "Time: " << now - temp << endl;
                 small_deceleration_duration_modification = small_deceleration_duration - (now - temp - small_deceleration_duration_modification);
                 cout << "Modification: " << small_deceleration_duration_modification << endl << endl;
                 temp = now; // mark temp as soon as possible
             }
-            if (abs(current) > close_rotate_tolerance) {
-                vel_msg.angular.z = (current < 0) ? MV_ANGULAR_SPEED : -MV_ANGULAR_SPEED;
+            if (abs(current) > close_rotate_tolerance_while_moving) {
+                vel_msg.angular.z = (current < 0) ? ALIGN_WHILE_MOVING_ANGULAR_SPEED : -ALIGN_WHILE_MOVING_ANGULAR_SPEED;
                 velocity_publisher.publish(vel_msg);
                 temp_temp = now; // mark the time the robot starts rotating
                 // Opps code
@@ -593,8 +685,8 @@ void moveCallback(const automotive_robot::Path::ConstPtr &msg)
                 break;
             }
             now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
-            if (abs(current) > close_rotate_tolerance) {
-                vel_msg.angular.z = (current < 0) ? MV_ANGULAR_SPEED : -MV_ANGULAR_SPEED;
+            if (abs(current) > close_rotate_tolerance_while_moving) {
+                vel_msg.angular.z = (current < 0) ? ALIGN_WHILE_MOVING_ANGULAR_SPEED : -ALIGN_WHILE_MOVING_ANGULAR_SPEED;
                 velocity_publisher.publish(vel_msg);
                 temp = now; // mark the time the robot starts rotating
                 // Opps code
