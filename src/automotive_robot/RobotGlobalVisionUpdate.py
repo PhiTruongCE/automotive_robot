@@ -302,7 +302,7 @@ def main():
     print(__file__ + " start!!")
 
     rospy.init_node('robot_global_vision_update', anonymous=True)
-
+    
     rospy.Subscriber("update_vision", String, updateGlobalVisionCallBack)
     
     global flag_plot
