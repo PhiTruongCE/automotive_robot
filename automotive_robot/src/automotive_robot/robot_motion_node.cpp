@@ -40,15 +40,15 @@ void odomCallback(const nav_msgs::Odometry::ConstPtr &msg);
 double z = 0;
 int main(int argc, char **argv) {
     // Initiate new ROS node named "talker"
-//     ros::init(argc, argv, "robot_motion");
-//     ros::NodeHandle n;
+     ros::init(argc, argv, "robot_motion");
+     ros::NodeHandle n;
 
 //     velocity_publisher = n.advertise<geometry_msgs::Twist>("cmd_vel", 1000);
 //     moveFinished_publisher = n.advertise<std_msgs::String>("update_vision", 1000);
 
 //     ROS_INFO("\n\n\n ******** START *********\n");
 
-//     ros::Subscriber sub = n.subscribe("cmd_moving", 1000, moveCallback);
+     ros::Subscriber sub = n.subscribe("cmd_moving", 1000, moveCallback);
 //     ros::Subscriber Odometry_sub = n.subscribe("odom", 1000, odomCallback);
 //     std_msgs::String triggered_msg;
 //     triggered_msg.data = "done";
@@ -64,8 +64,8 @@ int main(int argc, char **argv) {
 //     ros::waitForShutdown();
 
 //     return 0;
-        ros::init(argc, argv, "robot_motion");
-        ros::NodeHandle n;
+        //ros::init(argc, argv, "robot_motion");
+        //ros::NodeHandle n;
 
         velocity_publisher = n.advertise<geometry_msgs::Twist>("cmd_vel", 1000);
 
@@ -73,11 +73,10 @@ int main(int argc, char **argv) {
 
         ros::Subscriber Odometry_sub = n.subscribe("odom", 1000, odomCallback);
 
-        ros::MultiThreadedSpinner Spinner(2);
+        ros::MultiThreadedSpinner Spinner(3);
         
 
-        cout<<"Rotate"<<endl;
-        rotate(true, (double(45) / 180) * M_PI);
+        
 
         // vel_msg.linear.x = 0;
         // vel_msg.linear.y = 0;
@@ -95,7 +94,7 @@ int main(int argc, char **argv) {
         // //else {cout << "yasdfsa\n";break;}}
         // // ros::spinOnce();
         // // Spinner.spin();
-        ros::spin();
+        Spinner.spin();
         ros::waitForShutdown();
 
         return 0;
@@ -320,10 +319,13 @@ void rotate_accelerate(bool rotate_right, double direction){
     int small_rotate_acceleration_duration_modification = small_rotate_acceleration_duration;
     double current;
     do {
+        //ros::spinOnce();
         now = duration_cast<milliseconds>(system_clock::now().time_since_epoch()).count();
         current = odomAngleXaxis - direction;
+        current = 90;
+        //cout << " xAxix:" << odomAngleXaxis;
         if (now - temp >= small_rotate_acceleration_duration_modification) {
-            cout << "rotate_speed:" << vel_msg.angular.z << "Direction: " << direction << endl; 
+            cout << " xAxix:" << odomAngleXaxis << "rotate_speed:" << vel_msg.angular.z << "Direction: " << direction << endl; 
             vel_msg.angular.z += rotate_change;
             velocity_publisher.publish(vel_msg);
             small_rotate_acceleration_duration_modification = small_rotate_acceleration_duration - (now - temp - small_rotate_acceleration_duration_modification);
@@ -436,9 +438,11 @@ void calculate_start_bending_vector_and_stop_bending_vector(const automotive_rob
 }
 
 void moveCallback(const automotive_robot::Path::ConstPtr &msg) {
+    cout<<"Rotate"<<endl;
+    rotate(true, (double(45) / 180) * M_PI);
     unsigned loops = msg->points.size();
     ROS_INFO("I heard: [%f,%f]", msg->points[loops - 1].x, msg->points[loops - 1].y);
-
+    
     double direction;
     bool rotate_right =  determine_rotate_direction(msg->points[1], direction);
     rotate(rotate_right, direction);

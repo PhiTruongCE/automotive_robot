@@ -304,7 +304,7 @@ def main():
     rospy.init_node('robot_global_vision_update', anonymous=True)
     
     rospy.Subscriber("update_vision", String, updateGlobalVisionCallBack)
-    
+    while (1): pub.publish([])
     global flag_plot
     flag_plot = False
 
