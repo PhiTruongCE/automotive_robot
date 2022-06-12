@@ -4,7 +4,7 @@
 ## 1. Input goal(x,y) in line 15 in file execute.sh
 ```rosrun automotive_robot RobotGlobalVisionUpdate.py -gx x -gy y```
 ## 2. Open 1 terminal and run roscore
-```$ oscore```
+```$ roscore```
 ## 3. Open 1 terminal and ssh to Turtlebot3 Burger, run node Bringup
 ```$ roslaunch turtlebot3_bringup turtlebot3_robot.launch```
 ## 4. Open 1 terminal and run node SLAM
