@@ -1,7 +1,7 @@
 # Turtlebot3 Robot Motion in ROS environment
 
 # Setup
-Replace with your username in line 397 in RobotGlobalVisionUpdate.py and line 150 in RobotMotionController.cpp from ```/home/minhtam``` to ```/home/your_username```
+Replace with your username in line 397 in RobotGlobalVisionUpdate.py, line 150 in RobotMotionController.cpp and line 25 in PaperFinder.py from ```/home/minhtam``` to ```/home/your_username```
 
 # Run Autonomous Robot step by step
 ## 1. Input goal(x,y) in line 15 in file execute.sh
